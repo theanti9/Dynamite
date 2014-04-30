@@ -18,7 +18,11 @@ object DiskStorageFileIndex {
         val kLen = f.readInt()
         val key = (0 until kLen).map(_ => f.readChar()).mkString
         val offset = f.readLong()
-        m.put(key, offset)
+        offset match {
+          case -1 => if (m.containsKey(key)) m.remove(key)
+          case _ => m.put(key, offset)
+        }
+        
       } catch {
         case e:EOFException => done = true
       }
@@ -56,16 +60,28 @@ class DiskStorageFileIndex(path:String) {
 
   def keyExists(key:String):Boolean = keyIndexMap.keySet.contains(key)
 
-  def addToIndex(key:String, location:Long): Future[Boolean] = {
+  def removeKey(key:String): Future[Boolean] = {
     val w: Future[Boolean] = future {
-      val indexCommit = fileHandler.write(key, location)
-      //println(s"Setting $key at $location")
-      keyIndexMap.put(key, location)
+      val indexCommit = fileHandler.write(key, -1)
       val t = for {
         commit <- indexCommit
       } yield commit
       Await.result(t, 5 seconds)
     }
+    keyIndexMap.remove(key)
+    w
+  }
+  
+  def addToIndex(key:String, location:Long): Future[Boolean] = {
+    val w: Future[Boolean] = future {
+      val indexCommit = fileHandler.write(key, location)
+      //println(s"Setting $key at $location")
+      val t = for {
+        commit <- indexCommit
+      } yield commit
+      Await.result(t, 5 seconds)
+    }
+    keyIndexMap.put(key, location)
     w
   }
 }

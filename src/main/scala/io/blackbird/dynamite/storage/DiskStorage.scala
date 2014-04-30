@@ -31,32 +31,52 @@ class DiskStorage(bucket:String, fileNodes:LinearSeq[String], maxNodeSize:Int) {
                       ).seq.toMap[String, (DataFileHandler, DiskStorageFileIndex)]
 
   def close() {
-    fileMap.foreach(k => {
+    fileMap.par.foreach(k => {
       k._2._1.close
       k._2._2.close
     })
   }
   
-  def store(kvp:KeyValuePair): Boolean = fileNodeHash.get(Some(kvp.key)) match {
-      case Some(node) => fileMap.get(node) match {
-        case Some(f_i) => {
-          Await.result(for {
-            w <- f_i._1.write(kvp.value)
-            i <- f_i._2.addToIndex(kvp.key, w)
-          } yield i, 5 seconds)
-        } case None => println("WHAT THE SHIT, NO NODE?"); false
-      } case None => println("WHAT THE SHIT, NO HASH?"); false
+  def rem(key:String): Future[Boolean] = {
+    try{
+      val f_i = mapKey(key)
+      f_i._2.removeKey(key)
+    } catch {
+      case e:NoSuchFieldException => future { false }
+    }
+  }
+  
+  def store(kvp:KeyValuePair): Boolean =  {
+      try {
+        val f_i = mapKey(kvp.key)
+        Await.result(for {
+          w <- f_i._1.write(kvp.value)
+          i <- f_i._2.addToIndex(kvp.key, w)
+        } yield i, 5 seconds)
+      } catch {
+      	case e:NoSuchFieldException => false 
+      }
     }
 
-  def fetch(key:String): Future[Option[String]] = fileNodeHash.get(Some(key)) match {
+  def fetch(key:String): Future[Option[String]] = {
+    try {
+      val f_i = mapKey(key)
+      val value:Future[Option[String]] = for {
+	    i:Long <- f_i._2.getIndexLocation(key)
+	    r <- f_i._1.read(i)
+	  } yield r
+	  value
+    } catch {
+      case e:NoSuchFieldException => future { None }
+    }
+    
+  }
+  
+  private def mapKey(key:String):(DataFileHandler, DiskStorageFileIndex) = fileNodeHash.get(Some(key)) match {
       case Some(node) => fileMap.get(node) match {
-        case Some(f_i) => {
-          val value:Future[Option[String]] = for {
-            i:Long <- f_i._2.getIndexLocation(key)
-            r <- f_i._1.read(i)
-          } yield r
-          value
-        } case None => println("WHAT THE SHIT, NO NODE?"); future { None }
-      } case None => println("WHAT THE SHIT, NO HASH?"); future { None }
+        case Some(f_i) => f_i
+        case None => throw new NoSuchFieldException()
+      } 
+      case None => throw new NoSuchFieldException()
     }
 }

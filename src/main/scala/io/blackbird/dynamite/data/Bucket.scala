@@ -48,6 +48,10 @@ class Bucket private(name:String)  {
   def get(key:String, timeout:Int = 5): Option[String] = {
     Await.result(getAsync(key), timeout seconds)
   }
+  
+  def rem(key:String, timeout:Int = 5) {
+    Await.result(remAsync(key), timeout seconds)
+  }
 
   def setAsync(key:String, value:String): Future[Boolean] = {
     val kvp = new KeyValuePair(key,value)
@@ -58,6 +62,10 @@ class Bucket private(name:String)  {
 
   def getAsync(key:String): Future[Option[String]] = {
     diskStorage.fetch(key)
+  }
+  
+  def remAsync(key:String): Future[Boolean] = {
+    diskStorage.rem(key)
   }
   
   def close(){

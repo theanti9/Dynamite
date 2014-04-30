@@ -107,6 +107,11 @@ object Runner {
                 val end = System.currentTimeMillis()
                 println(s"'${out}'")
                 println(s"Read finished in ${(end - start)/1000.0} seconds")
+              } case "del" => {
+                val start = System.currentTimeMillis()
+                b.rem(cmd(1))
+                val end = System.currentTimeMillis()
+                println(s"Remove finished in ${(end - start)/1000.0} seconds")
               }
               case _ => println(s"Unknown command ${cmd(0)}")
             }
