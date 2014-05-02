@@ -15,8 +15,7 @@ object DiskStorageFileIndex {
     var done:Boolean = false
     while (!done) {
       try {
-        val kLen = f.readInt()
-        val key = (0 until kLen).map(_ => f.readChar()).mkString
+        val key = (0 until 32).map(_ => f.readChar()).mkString
         val offset = f.readLong()
         offset match {
           case -1 => if (m.containsKey(key)) m.remove(key)

@@ -36,7 +36,6 @@ class IndexFileHandler(path:String) {
             handle.getChannel.position(position)
           }
         }
-        handle.writeInt(param._1.length)
         handle.writeChars(param._1)
         handle.writeLong(param._2)
       }

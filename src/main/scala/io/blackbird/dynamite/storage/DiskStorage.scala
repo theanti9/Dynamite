@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 import io.blackbird.dynamite.util.Utils.context
 
 object DiskStorage {
-  val storageDir:String = "data"
+  val storageDir:String = "E:\\data"
 
   def loadBucketStorage(bucket:String): DiskStorage =
     new DiskStorage(bucket, new File(storageDir,bucket).listFiles().map(f => {
@@ -29,6 +29,7 @@ class DiskStorage(bucket:String, fileNodes:LinearSeq[String], maxNodeSize:Int) {
                             DiskStorageFileIndex.loadFromIndexFile(f+".index"))
                         }
                       ).seq.toMap[String, (DataFileHandler, DiskStorageFileIndex)]
+  private val hashFunc: MD5HashFunction = new MD5HashFunction
 
   def close() {
     fileMap.par.foreach(k => {
@@ -39,8 +40,9 @@ class DiskStorage(bucket:String, fileNodes:LinearSeq[String], maxNodeSize:Int) {
   
   def rem(key:String): Future[Boolean] = {
     try{
+      val hash = hashFunc.hash(key)
       val f_i = mapKey(key)
-      f_i._2.removeKey(key)
+      f_i._2.removeKey(hash)
     } catch {
       case e:NoSuchFieldException => future { false }
     }
@@ -48,10 +50,11 @@ class DiskStorage(bucket:String, fileNodes:LinearSeq[String], maxNodeSize:Int) {
   
   def store(kvp:KeyValuePair): Boolean =  {
       try {
+        val hash = hashFunc.hash(kvp.key)
         val f_i = mapKey(kvp.key)
         Await.result(for {
           w <- f_i._1.write(kvp.value)
-          i <- f_i._2.addToIndex(kvp.key, w)
+          i <- f_i._2.addToIndex(hash, w)
         } yield i, 5 seconds)
       } catch {
       	case e:NoSuchFieldException => false 
@@ -60,9 +63,10 @@ class DiskStorage(bucket:String, fileNodes:LinearSeq[String], maxNodeSize:Int) {
 
   def fetch(key:String): Future[Option[String]] = {
     try {
+      val hash = hashFunc.hash(key)
       val f_i = mapKey(key)
       val value:Future[Option[String]] = for {
-	    i:Long <- f_i._2.getIndexLocation(key)
+	    i:Long <- f_i._2.getIndexLocation(hash)
 	    r <- f_i._1.read(i)
 	  } yield r
 	  value

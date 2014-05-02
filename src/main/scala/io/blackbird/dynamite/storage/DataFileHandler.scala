@@ -33,6 +33,7 @@ class DataFileHandler(path:String) {
 
   def write(content:String): Future[Long] = {
     if (closed) throw new IllegalAccessException("Already shutting down")
+    if (content.length > Short.MaxValue) throw new IllegalArgumentException("Content too long")
     val value = promise[Long]()
     writeQueue.put((content,value))
     value.future
@@ -59,8 +60,8 @@ class DataFileHandler(path:String) {
           result success None
         } else {
           handle.getChannel.position(param)
-          val len = handle.readInt()
-          result success Some(Utils.longRange(0, len).map(_=>handle.readChar).mkString)
+          val len = handle.readShort()
+          result success Some((0 until len).map(_=>handle.readChar).mkString)
         }
       }
     }
@@ -78,7 +79,7 @@ class DataFileHandler(path:String) {
           }
           start = position
         }
-        handle.writeInt(param.length)
+        handle.writeShort(param.length)
         handle.writeChars(param)
       }
       result success start
