@@ -3,11 +3,13 @@ package io.blackbird.dynamite.storage
 import java.io.RandomAccessFile
 import java.util.concurrent.LinkedBlockingQueue
 import scala.concurrent._
+import java.nio.charset.Charset
 
 /**
  * Created by ryan on 4/26/2014.
  */
 class IndexFileHandler(path:String) {
+  private val US_ASCII_CHARSET = Charset.forName("US-ASCII")
   private val writeHandle = new RandomAccessFile(path, "rw")
   private val writeQueue = new LinkedBlockingQueue[((String, Long), Promise[Boolean])]()
   private val writeConsumer = new WriteConsumer(writeHandle, writeQueue)
@@ -30,13 +32,13 @@ class IndexFileHandler(path:String) {
     extends FileConsumer[(String, Long), Boolean](handle, queue) {
     def handle(param:(String, Long), result:Promise[Boolean]) {
       handle.synchronized {
-        if (handle.length() > 0) {
-          val position = handle.length()
+        if (handle.getChannel().size() > 0) {
+          val position = handle.getChannel().size()
           if (handle.getChannel.position() != position) {
             handle.getChannel.position(position)
           }
         }
-        handle.writeChars(param._1)
+        handle.write(param._1.getBytes(US_ASCII_CHARSET))
         handle.writeLong(param._2)
       }
       result success true

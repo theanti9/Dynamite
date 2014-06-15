@@ -6,24 +6,34 @@ import scala.concurrent.duration._
 import java.util.concurrent.ConcurrentHashMap
 import io.blackbird.dynamite.util.Utils.context
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.io.FileInputStream
+import java.nio.charset.Charset
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 object DiskStorageFileIndex {
   def loadFromIndexFile(path:String): DiskStorageFileIndex = {
     val index = new DiskStorageFileIndex(path)
     val m = new ConcurrentHashMap[String, Long]()
     val f = new RandomAccessFile(path, "r")
+    val b = new FileInputStream(path)
+    val bytes = new Array[Byte](4000)
     var done:Boolean = false
-    while (!done) {
-      try {
-        val key = (0 until 32).map(_ => f.readChar()).mkString
-        val offset = f.readLong()
-        offset match {
-          case -1 => if (m.containsKey(key)) m.remove(key)
-          case _ => m.put(key, offset)
+    while (b.read(bytes) > -1) {
+      for (i <- 0 until 100) {
+        val key = new String(bytes.slice(i*40, i*40+32), Charset.forName("ascii"))
+        val sl = bytes.slice(i*40+32, i*40+40)
+        
+        sl.length match {
+          case 8 => {
+        	  val offset = ByteBuffer.wrap(sl).order(ByteOrder.BIG_ENDIAN).asLongBuffer().get()
+		      offset match {
+		        case -1 => if (m.containsKey(key)) m.remove(key)
+		        case _ => m.put(key, offset)
+		      }
+          } case _ => // Ignore, hit the end of the actual buffer.
         }
         
-      } catch {
-        case e:EOFException => done = true
       }
     }
     f.close()
@@ -74,7 +84,6 @@ class DiskStorageFileIndex(path:String) {
   def addToIndex(key:String, location:Long): Future[Boolean] = {
     val w: Future[Boolean] = future {
       val indexCommit = fileHandler.write(key, location)
-      //println(s"Setting $key at $location")
       val t = for {
         commit <- indexCommit
       } yield commit

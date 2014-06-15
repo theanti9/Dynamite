@@ -52,7 +52,9 @@ class DataFileHandler(path:String) {
   class ReadConsumer(handle:RandomAccessFile, queue:LinkedBlockingQueue[(Long, Promise[Option[String]])])
     extends FileConsumer[Long, Option[String]](handle, queue) {
     def handle(param:Long, result:Promise[Option[String]]) {
-      if (param > handle.length()) {
+      if (param > handle.getChannel().size()) {
+        println(param)
+        println(handle.getChannel().size())
         result failure new IllegalAccessException
       }
       handle.synchronized {
@@ -77,8 +79,10 @@ class DataFileHandler(path:String) {
           if (handle.getChannel.position() != position) {
             handle.getChannel.position(position)
           }
+          
           start = position
         }
+        println(start)
         handle.writeShort(param.length)
         handle.writeChars(param)
       }
